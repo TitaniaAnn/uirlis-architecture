@@ -1,4 +1,4 @@
-# Observability Engineering — concepts applied to Hearthwright architecture (reference)
+# Observability Engineering — concepts applied to the reference control plane (reference)
 
 Source: *Observability Engineering*, 2nd Edition (O'Reilly). Per-chapter key ideas distilled and
 framed for this repo. Reference material — nothing here is built yet.
