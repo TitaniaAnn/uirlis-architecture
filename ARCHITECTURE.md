@@ -299,10 +299,20 @@ failures observable, with no agent or vendor SDK:
 This is a subset chosen to demonstrate the patterns above, not a runnable
 product:
 
-- The marketing/admin/dashboard **pages and components** are omitted; the
-  `layout.tsx` guards and the `actions.ts` write paths are included because
-  they're where the architecture lives. Wiring up `flutter`-style screen code
-  adds lines, not decisions.
+- The marketing/auth/admin/dashboard **pages** are omitted; the `layout.tsx`
+  guards and the `actions.ts` write paths are included because they're where
+  the architecture lives. The pages are public content views, login and
+  password-reset forms, CRUD editors over the content tables, and read views
+  over the rollups (§5): they add lines, not decisions.
+- The **app shell and styling** are omitted with them: no root
+  `src/app/layout.tsx`, `globals.css`, or Tailwind setup. The three shared
+  components that do ship (`workspace-shell`, `nav-link`, `sign-out-button`)
+  are there because the guarded layouts render them; their class names
+  (`bg-cream`, `text-clay`, …) refer to theme tokens defined in the omitted
+  stylesheet.
+- **`src/lib/types.ts`** ships only its API-key slice (`API_KEY_SCOPES`, the
+  `ApiKey` row type), which `src/app/admin/api-keys/actions.ts` imports. The
+  rest of the full app's hand-written row types go with the omitted pages.
 - Only **one ingestion function** (`ingest-usage`) ships, as the worked example
   of the shared `batch-ingest` harness (§6). Error, feedback, and wiki
   ingestion are further config objects on the same pipeline; including them
@@ -314,7 +324,9 @@ product:
 - Migration numbers preserve the production app's original sequence, so there
   are **gaps** (0008–0016 are not in this cut). That's expected, and the
   idempotent runner tolerates it.
-- No CI, no `package-lock.json`, no real seed data.
+- No CI, no `package-lock.json`, no real seed data. The `lint` and `test:e2e`
+  scripts in `package.json` have no ESLint config, Playwright config, or e2e
+  specs behind them in this cut.
 
 ## Verifying the claims
 
