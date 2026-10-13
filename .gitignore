@@ -27,3 +27,6 @@ supabase/.env
 /coverage
 /test-results
 /playwright-report
+
+# codebase-audit skill output
+/.audit/

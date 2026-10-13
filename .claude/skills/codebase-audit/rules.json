@@ -1,0 +1,246 @@
+{
+  "$comment": "Pattern rules for scripts/scan.mjs. Each hit is a candidate the audit reads in context. Fields: id, severity (error|warn|info), message, pattern (JS regex source), flags, include/exclude (globs), onlyIfFileMatches/skipIfFileMatches (case-insensitive multiline regex tested against the whole file), type ('file-must-match' flags files where pattern is absent), inComments (match inside comments too; off by default).",
+
+  "ignore": [
+    "package-lock.json",
+    "next-env.d.ts",
+    "public/**",
+    ".claude/**"
+  ],
+
+  "duplicateIgnore": [
+    "supabase/tests/**",
+    "tests/**",
+    "e2e/**",
+    "supabase/seed.sql",
+    "**/*_test.ts",
+    "**/*.test.*"
+  ],
+
+  "repeatedNameAllow": [
+    "default", "GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS",
+    "generateMetadata", "generateStaticParams", "Page", "Layout", "Loading",
+    "NotFound", "ErrorPage", "middleware", "handler", "read"
+  ],
+
+  "rules": [
+    {
+      "id": "get-session-server",
+      "severity": "error",
+      "message": "getSession() in server code trusts the cookie without revalidating. Use getUser().",
+      "pattern": "\\.auth\\.getSession\\(|\\.getSession\\(\\)",
+      "include": ["src/**", "middleware.ts"],
+      "skipIfFileMatches": "^[\"']use client[\"']"
+    },
+    {
+      "id": "service-role-in-client",
+      "severity": "error",
+      "message": "Service-role client imported into a Client Component.",
+      "pattern": "from [\"']@/lib/supabase/admin[\"']",
+      "include": ["src/**"],
+      "onlyIfFileMatches": "^[\"']use client[\"']"
+    },
+    {
+      "id": "admin-client-server-only",
+      "severity": "error",
+      "message": "Service-role module must start with import \"server-only\".",
+      "type": "file-must-match",
+      "pattern": "^import [\"']server-only[\"'];?",
+      "include": ["src/lib/supabase/admin.ts"]
+    },
+    {
+      "id": "request-context-in-edge",
+      "severity": "error",
+      "message": "request-context.ts is Node-only; middleware runs on the Edge runtime.",
+      "pattern": "from [\"'][^\"']*request-context[\"']",
+      "include": ["middleware.ts", "src/lib/supabase/middleware.ts"]
+    },
+    {
+      "id": "dashboard-action-no-role-check",
+      "severity": "error",
+      "message": "Admin/dashboard Server Action file with no requireRole/require* call. Every mutation needs the server-side role check.",
+      "type": "file-must-match",
+      "pattern": "require[A-Z]\\w*\\(",
+      "include": ["src/app/admin/**/actions.ts", "src/app/dashboard/**/actions.ts"]
+    },
+    {
+      "id": "action-no-zod",
+      "severity": "warn",
+      "message": "Server Action file with no Zod schema or shared form-field helper. FormData should be parsed at the boundary.",
+      "type": "file-must-match",
+      "pattern": "from [\"']zod[\"']|@/lib/form-fields",
+      "include": ["src/app/**/actions.ts", "src/app/**/*-actions.ts"]
+    },
+    {
+      "id": "public-action-no-rate-limit",
+      "severity": "warn",
+      "message": "Public (marketing) Server Action file with no rate-limit call.",
+      "type": "file-must-match",
+      "pattern": "rate-?limit|rateLimit",
+      "flags": "mi",
+      "include": ["src/app/(marketing)/**/actions.ts", "src/app/(marketing)/*-actions.ts", "src/app/(public)/**/actions.ts"]
+    },
+    {
+      "id": "empty-catch",
+      "severity": "warn",
+      "message": "Empty catch block swallows the failure. Log it (logError) or comment why it's safe to ignore.",
+      "inComments": true,
+      "pattern": "catch\\s*(?:\\([^)]*\\))?\\s*\\{\\s*\\}",
+      "include": ["src/**", "middleware.ts", "supabase/functions/**", "scripts/**"]
+    },
+    {
+      "id": "catch-without-log",
+      "severity": "info",
+      "message": "catch block with no logError/selectOrLog/console.error/throw in its first few lines. Check it isn't a silent degrade.",
+      "inComments": true,
+      "pattern": "catch\\s*(?:\\([^)]*\\))?\\s*\\{(?![^}]{0,400}?(?:logError|selectOrLog|console\\.(?:error|warn)|throw\\b|\\/\\/))[^}]*\\}",
+      "include": ["src/**", "middleware.ts"]
+    },
+    {
+      "id": "error-redirect-without-log",
+      "severity": "info",
+      "message": "Redirect with ?error= — confirm logError/selectOrLog runs before it.",
+      "pattern": "redirect\\([^)]*[?&]error=",
+      "include": ["src/**"],
+      "skipIfFileMatches": "logError|selectOrLog"
+    },
+    {
+      "id": "log-scope-not-dotted",
+      "severity": "warn",
+      "message": "logError/selectOrLog scope should be dotted (area.module.function) so logs group by surface.",
+      "pattern": "(?:logError|selectOrLog)\\(\\s*[\"'`](?![a-z][\\w-]*\\.\\w)",
+      "include": ["src/**", "middleware.ts"],
+      "exclude": ["src/lib/observability.ts"]
+    },
+    {
+      "id": "raw-firehose-read",
+      "severity": "error",
+      "message": "App code reading the raw telemetry table. It's service-role only; dashboards read the rollups (usage_daily, usage_active_users).",
+      "pattern": "\\.from\\(\\s*[\"']usage_events[\"']",
+      "include": ["src/**"]
+    },
+    {
+      "id": "env-non-null",
+      "severity": "warn",
+      "message": "process.env.X! hides a missing variable until runtime. Use requireEnv() for required values.",
+      "pattern": "process\\.env\\.\\w+!",
+      "include": ["src/**", "middleware.ts"]
+    },
+    {
+      "id": "env-direct-server",
+      "severity": "info",
+      "message": "Direct process.env read outside env.ts. Fine for optional vars with a fallback; required vars belong in requireEnv().",
+      "pattern": "process\\.env\\.(?!NEXT_PUBLIC_|NODE_ENV)\\w+",
+      "include": ["src/**", "middleware.ts"],
+      "exclude": ["src/lib/env.ts"]
+    },
+    {
+      "id": "console-log",
+      "severity": "warn",
+      "message": "console.log left in app code. Use logError or remove.",
+      "pattern": "console\\.(?:log|debug)\\(",
+      "include": ["src/**", "middleware.ts", "supabase/functions/**"],
+      "exclude": ["supabase/functions/**/*.test.ts"]
+    },
+    {
+      "id": "ts-any",
+      "severity": "warn",
+      "message": "Explicit any defeats strict mode.",
+      "pattern": ":\\s*any\\b|\\bas any\\b|<any>",
+      "include": ["src/**", "middleware.ts", "supabase/functions/**"]
+    },
+    {
+      "id": "lint-suppression",
+      "severity": "info",
+      "message": "Type/lint suppression. Check the reason still holds.",
+      "pattern": "@ts-ignore|@ts-nocheck|@ts-expect-error|eslint-disable",
+      "inComments": true,
+      "include": ["src/**", "middleware.ts", "supabase/functions/**", "tests/**"]
+    },
+    {
+      "id": "todo",
+      "severity": "info",
+      "message": "Unresolved marker.",
+      "pattern": "\\b(?:TODO|FIXME|HACK|XXX)\\b",
+      "inComments": true,
+      "include": ["src/**", "middleware.ts", "supabase/**", "scripts/**", "tests/**"]
+    },
+    {
+      "id": "dangerous-html",
+      "severity": "warn",
+      "message": "dangerouslySetInnerHTML. Confirm the input is sanitized (rehype-sanitize) or static.",
+      "pattern": "dangerouslySetInnerHTML",
+      "include": ["src/**"]
+    },
+    {
+      "id": "client-fetch-mutation",
+      "severity": "warn",
+      "message": "Client-side fetch to an internal API route. Mutations go through Server Actions.",
+      "pattern": "fetch\\(\\s*[`\"']/api/",
+      "include": ["src/**"],
+      "onlyIfFileMatches": "^[\"']use client[\"']"
+    },
+    {
+      "id": "select-star",
+      "severity": "info",
+      "message": "select(\"*\") pulls every column, including ones added later. Name the columns the caller uses.",
+      "pattern": "\\.select\\(\\s*[\"']\\*[\"']",
+      "include": ["src/**", "supabase/functions/**"]
+    },
+    {
+      "id": "read-modify-write-counter",
+      "severity": "warn",
+      "message": "Looks like a read-modify-write on a counter. Counters mutate via atomic RPCs.",
+      "pattern": "\\.update\\(\\{[^}]*\\b\\w*(?:count|total|balance)\\w*\\s*:\\s*\\w+(?:\\.\\w+)*\\s*[+-]\\s*1",
+      "flags": "i",
+      "include": ["src/**", "supabase/functions/**"]
+    },
+    {
+      "id": "grant-all",
+      "severity": "error",
+      "message": "GRANT ALL includes TRUNCATE, which RLS doesn't gate. Grant the specific privileges.",
+      "pattern": "grant\\s+all\\b",
+      "flags": "i",
+      "include": ["supabase/migrations/**"]
+    },
+    {
+      "id": "definer-without-search-path",
+      "severity": "error",
+      "message": "SECURITY DEFINER function without SET search_path is hijackable through the caller's search_path.",
+      "pattern": "security\\s+definer(?![\\s\\S]{0,300}?search_path)",
+      "flags": "i",
+      "include": ["supabase/migrations/**"]
+    },
+    {
+      "id": "table-without-rls",
+      "severity": "info",
+      "message": "CREATE TABLE in a file that never enables RLS. Check RLS is enabled elsewhere for this table.",
+      "pattern": "create\\s+table\\s+(?:if\\s+not\\s+exists\\s+)?[\\w.\"]+",
+      "flags": "i",
+      "include": ["supabase/migrations/**"],
+      "skipIfFileMatches": "enable\\s+row\\s+level\\s+security"
+    },
+    {
+      "id": "hardcoded-secret",
+      "severity": "error",
+      "message": "Looks like a hardcoded credential.",
+      "pattern": "(?:sk_live_|sk_test_|re_[A-Za-z0-9]{20,}|eyJhbGciOi[A-Za-z0-9_-]{20,}\\.[A-Za-z0-9_-]{20,}|-----BEGIN (?:RSA |EC )?PRIVATE KEY)",
+      "include": ["**"],
+      "exclude": [".env.example"]
+    },
+    {
+      "id": "use-effect-fetch",
+      "severity": "info",
+      "message": "Data fetch inside useEffect in a Client Component. Server Components or Server Actions are usually the better fit here.",
+      "pattern": "useEffect\\(\\s*\\(\\)\\s*=>\\s*\\{[\\s\\S]{0,200}?(?:fetch\\(|\\.from\\()",
+      "include": ["src/**"]
+    }
+  ],
+
+  "tools": [
+    { "name": "typecheck", "cmd": "npx", "args": ["--no-install", "tsc", "--noEmit", "--pretty", "false"], "needsNodeModules": true },
+    { "name": "lint", "cmd": "npx", "args": ["--no-install", "eslint", "."], "needsNodeModules": true },
+    { "name": "unit", "cmd": "npm", "args": ["test", "--silent"], "needsNodeModules": false },
+    { "name": "deno-check", "cmd": "sh", "args": ["-c", "command -v deno >/dev/null || exit 127; deno check --node-modules-dir=auto supabase/functions/*/index.ts"], "needsNodeModules": false }
+  ]
+}
